@@ -25,10 +25,10 @@ jobs:
             nombre=$(basename "$f" .url)
             url=$(head -n1 "$f" | tr -d '\r\n ')
             case "$url" in
-              https://elevenlabsusercontent.com/*|https://*.elevenlabs.io/*) ;;
+              https://elevenlabsusercontent.com/*|https://*.elevenlabs.io/*|https://dnznrvs05pmza.cloudfront.net/*) ;;
               *) echo "URL no permitida en $f"; exit 1 ;;
             esac
-            curl -sS -f -L "$url" -o "audio/$nombre.mp3"
+            ext=$(echo "$url" | sed -E "s/\?.*//; s/.*\.//"); [ "$ext" = "mp3" ] && dest="audio/$nombre.mp3" || { mkdir -p media/brutos; dest="media/brutos/$nombre.$ext"; }; curl -sS -f -L "$url" -o "$dest"
             git rm -q "$f"
             echo "Descargado audio/$nombre.mp3"
           done
@@ -36,5 +36,5 @@ jobs:
         run: |
           git config user.name "noblepata-bot"
           git config user.email "noblepataredes@gmail.com"
-          git add -A audio descargas
+          git add -A audio descargas media
           git diff --cached --quiet || (git commit -m "Audio traído de ElevenLabs" && git push)

@@ -1,0 +1,40 @@
+name: Traer audio (ElevenLabs)
+
+# Cuando se sube descargas/<nombre>.url con el enlace de un audio generado en ElevenLabs,
+# lo descarga a audio/<nombre>.mp3 y borra el .url.
+on:
+  push:
+    paths:
+      - "descargas/**.url"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  traer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Descargar audios
+        run: |
+          set -e
+          mkdir -p audio
+          for f in descargas/*.url; do
+            [ -e "$f" ] || continue
+            nombre=$(basename "$f" .url)
+            url=$(head -n1 "$f" | tr -d '\r\n ')
+            case "$url" in
+              https://elevenlabsusercontent.com/*|https://*.elevenlabs.io/*) ;;
+              *) echo "URL no permitida en $f"; exit 1 ;;
+            esac
+            curl -sS -f -L "$url" -o "audio/$nombre.mp3"
+            git rm -q "$f"
+            echo "Descargado audio/$nombre.mp3"
+          done
+      - name: Guardar
+        run: |
+          git config user.name "noblepata-bot"
+          git config user.email "noblepataredes@gmail.com"
+          git add -A audio descargas
+          git diff --cached --quiet || (git commit -m "Audio traído de ElevenLabs" && git push)

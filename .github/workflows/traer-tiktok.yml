@@ -1,0 +1,41 @@
+name: Traer audio de TikTok
+
+# Cuando se sube descargas/<nombre>.tiktok con el enlace de un vídeo de TikTok,
+# guarda su audio en media/brutos/<nombre>.m4a (y el vídeo en .mp4) y borra el .tiktok.
+on:
+  push:
+    paths:
+      - "descargas/**.tiktok"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  traer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Descargar
+        run: |
+          set -e
+          pip install -q -U yt-dlp
+          mkdir -p media/brutos
+          for f in descargas/*.tiktok; do
+            [ -e "$f" ] || continue
+            nombre=$(basename "$f" .tiktok)
+            url=$(head -n1 "$f" | tr -d '\r\n ')
+            case "$url" in
+              https://vt.tiktok.com/*|https://www.tiktok.com/*|https://vm.tiktok.com/*) ;;
+              *) echo "URL no permitida en $f"; exit 1 ;;
+            esac
+            yt-dlp -q -f "b" -o "media/brutos/$nombre.%(ext)s" "$url"
+            git rm -q "$f"
+          done
+          ls -la media/brutos
+      - name: Guardar
+        run: |
+          git config user.name "noblepata-bot"
+          git config user.email "noblepataredes@gmail.com"
+          git add -A descargas media
+          git diff --cached --quiet || (git commit -m "Audio traído de TikTok" && git push)

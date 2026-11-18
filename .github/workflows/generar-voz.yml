@@ -1,0 +1,53 @@
+name: Generar voz (ElevenLabs)
+
+# Cada vez que se sube un guion a guiones/*.txt, genera el MP3 con la voz oficial
+# de Bro CEO (Brian) y lo guarda en audio/ con el mismo nombre.
+on:
+  push:
+    paths:
+      - "guiones/**.txt"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  voz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generar audios que falten
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          VOICE_ID: nPczCjzI2devNBz1zQrb   # Brian - Deep, Resonant and Comforting
+        run: |
+          set -e
+          mkdir -p audio
+          for f in guiones/*.txt; do
+            [ -e "$f" ] || continue
+            nombre=$(basename "$f" .txt)
+            salida="audio/$nombre.mp3"
+            if [ -f "$salida" ] && [ "$salida" -nt "$f" ]; then
+              echo "Ya existe: $salida"; continue
+            fi
+            echo "Generando $salida"
+            python3 - "$f" > /tmp/body.json <<'PY'
+          import json, sys
+          texto = open(sys.argv[1], encoding="utf-8").read().strip()
+          print(json.dumps({
+              "text": texto,
+              "model_id": "eleven_multilingual_v2",
+              "language_code": "es",
+              "voice_settings": {"stability": 0.55, "similarity_boost": 0.8, "style": 0.35, "use_speaker_boost": True}
+          }))
+          PY
+            curl -sS -f -X POST "https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}?output_format=mp3_44100_128" \
+              -H "xi-api-key: ${ELEVENLABS_API_KEY}" -H "Content-Type: application/json" \
+              --data @/tmp/body.json -o "$salida"
+          done
+      - name: Guardar audios
+        run: |
+          git config user.name "noblepata-bot"
+          git config user.email "noblepataredes@gmail.com"
+          git add audio
+          git diff --cached --quiet || (git commit -m "Audios generados con ElevenLabs" && git push)

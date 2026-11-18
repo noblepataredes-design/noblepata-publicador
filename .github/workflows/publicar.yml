@@ -1,0 +1,37 @@
+name: Publicar en Instagram
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # cada 30 minutos revisa si hay algo que publicar
+  workflow_dispatch: {}      # botón para lanzarlo a mano
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Publicar posts pendientes
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          MEDIA_BASE_URL: ${{ vars.MEDIA_BASE_URL }}
+        run: python publicar.py
+      - name: Guardar estado del calendario
+        if: always()
+        run: |
+          if ! git diff --quiet calendario.json; then
+            git config user.name "noblepata-bot"
+            git config user.email "bot@noblepata.com"
+            git add calendario.json
+            git commit -m "Actualizar estado de publicaciones"
+            git push
+          fi
